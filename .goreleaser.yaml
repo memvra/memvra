@@ -1,0 +1,72 @@
+version: 2
+
+project_name: memvra
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: memvra
+    main: ./cmd/memvra
+    binary: memvra
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    overrides:
+      - goos: linux
+        goarch: amd64
+        env:
+          - CC=x86_64-linux-gnu-gcc
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=aarch64-linux-gnu-gcc
+
+archives:
+  - id: memvra
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+
+release:
+  github:
+    owner: memvra
+    name: memvra
+
+brews:
+  - name: memvra
+    repository:
+      owner: memvra
+      name: homebrew-tap
+    description: "Persistent, model-agnostic AI memory layer for software projects"
+    homepage: "https://memvra.com"
+    license: "MIT"
+    install: |
+      bin.install "memvra"
+    test: |
+      system "#{bin}/memvra", "--version"
