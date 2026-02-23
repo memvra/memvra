@@ -356,6 +356,56 @@ func (s *Store) GetMemoryByID(id string) (Memory, error) {
 	return m, nil
 }
 
+// ListFiles returns every indexed file.
+func (s *Store) ListFiles() ([]File, error) {
+	rows, err := s.db.Conn().Query(
+		`SELECT id, path, language, last_modified, content_hash, indexed_at FROM files ORDER BY path`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list files: %w", err)
+	}
+	defer rows.Close()
+
+	var files []File
+	for rows.Next() {
+		var f File
+		var lastMod, indexedAt string
+		if err := rows.Scan(&f.ID, &f.Path, &f.Language, &lastMod, &f.ContentHash, &indexedAt); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+// ListChunksByFileID returns all chunks belonging to a file.
+func (s *Store) ListChunksByFileID(fileID string) ([]Chunk, error) {
+	rows, err := s.db.Conn().Query(
+		`SELECT id, file_id, content, start_line, end_line, COALESCE(chunk_type,'code') FROM chunks WHERE file_id = ?`,
+		fileID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list chunks by file: %w", err)
+	}
+	defer rows.Close()
+
+	var chunks []Chunk
+	for rows.Next() {
+		var c Chunk
+		if err := rows.Scan(&c.ID, &c.FileID, &c.Content, &c.StartLine, &c.EndLine, &c.ChunkType); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, rows.Err()
+}
+
+// DeleteFile removes a file record. Chunks are cascade-deleted by SQLite.
+func (s *Store) DeleteFile(id string) error {
+	_, err := s.db.Conn().Exec(`DELETE FROM files WHERE id = ?`, id)
+	return err
+}
+
 // GetFileByID returns a single file record by its ID.
 func (s *Store) GetFileByID(id string) (File, error) {
 	var f File

@@ -25,6 +25,7 @@ var registry = map[string]Exporter{
 	"claude":   &ClaudeMDExporter{},
 	"cursor":   &CursorRulesExporter{},
 	"markdown": &MarkdownExporter{},
+	"json":     &JSONExporter{},
 }
 
 // Get returns the Exporter registered under name, and whether it was found.

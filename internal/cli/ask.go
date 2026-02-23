@@ -53,6 +53,11 @@ Examples:
 			}
 			pcfg, _ := config.LoadProject(root)
 
+			// Prepend always_include paths from project config.
+			if len(pcfg.AlwaysInclude) > 0 {
+				files = append(pcfg.AlwaysInclude, files...)
+			}
+
 			// Determine effective model.
 			providerName := gcfg.DefaultModel
 			if pcfg.DefaultModel != "" {
