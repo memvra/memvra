@@ -21,6 +21,7 @@ func newAskCmd() *cobra.Command {
 		files       []string
 		noMemory    bool
 		contextOnly bool
+		verbose     bool
 		maxTokens   int
 		temperature float64
 	)
@@ -93,6 +94,7 @@ Examples:
 
 			builtCtx, err := builder.Build(context.Background(), ctxpkg.BuildOptions{
 				Question:            question,
+				ProjectRoot:         root,
 				MaxTokens:           gcfg.Context.MaxTokens,
 				TopKChunks:          gcfg.Context.TopKChunks,
 				TopKMemories:        gcfg.Context.TopKMemories,
@@ -101,6 +103,14 @@ Examples:
 			})
 			if err != nil {
 				return fmt.Errorf("build context: %w", err)
+			}
+
+			if verbose && len(builtCtx.Sources) > 0 {
+				fmt.Fprintln(os.Stderr, "=== Sources included ===")
+				for _, s := range builtCtx.Sources {
+					fmt.Fprintf(os.Stderr, "  • %s\n", s)
+				}
+				fmt.Fprintln(os.Stderr)
 			}
 
 			if contextOnly {
@@ -155,6 +165,7 @@ Examples:
 	cmd.Flags().StringArrayVarP(&files, "files", "f", nil, "files to always include in context (comma-separated paths)")
 	cmd.Flags().BoolVar(&noMemory, "no-memory", false, "skip memory retrieval, use raw question only")
 	cmd.Flags().BoolVar(&contextOnly, "context-only", false, "print injected context without calling LLM")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show which memories and chunks were included in context")
 	cmd.Flags().IntVar(&maxTokens, "max-tokens", 4096, "maximum response tokens")
 	cmd.Flags().Float64Var(&temperature, "temperature", 0.7, "sampling temperature")
 

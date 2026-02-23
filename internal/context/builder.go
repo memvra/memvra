@@ -2,6 +2,9 @@ package context
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/memvra/memvra/internal/memory"
@@ -11,6 +14,7 @@ import (
 // BuildOptions controls how context is assembled.
 type BuildOptions struct {
 	Question            string
+	ProjectRoot         string   // used to resolve ExtraFiles relative paths
 	MaxTokens           int
 	TopKChunks          int
 	TopKMemories        int
@@ -25,6 +29,9 @@ type BuiltContext struct {
 	TokensUsed   int
 	ChunksUsed   int
 	MemoriesUsed int
+	// Sources lists what was included, for --verbose output.
+	// Each entry is a short human-readable label.
+	Sources []string
 }
 
 // Builder assembles token-budget-aware prompts from project memory.
@@ -71,6 +78,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*BuiltContext, 
 
 	remaining := opts.MaxTokens
 	var contextSections []string
+	var sources []string
 
 	// --- Step 1: Project profile (always included) ---
 	proj, err := b.store.GetProject()
@@ -86,24 +94,53 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*BuiltContext, 
 
 	systemPrompt := b.formatter.FormatSystemPrompt(proj, ts, conventions, constraints)
 
-	// --- Step 3: Retrieve semantically relevant content ---
+	// --- Step 3: Explicitly requested files (highest priority, always included) ---
+	for _, relPath := range opts.ExtraFiles {
+		absPath := relPath
+		if opts.ProjectRoot != "" && !filepath.IsAbs(relPath) {
+			absPath = filepath.Join(opts.ProjectRoot, relPath)
+		}
+		content, err := os.ReadFile(absPath)
+		if err != nil {
+			// File not found or unreadable — skip gracefully.
+			continue
+		}
+		c := memory.Chunk{
+			Content:   string(content),
+			StartLine: 1,
+			EndLine:   strings.Count(string(content), "\n") + 1,
+			ChunkType: "code",
+		}
+		block := b.formatter.FormatChunk(c, relPath)
+		tokens := b.tokenizer.Count(block)
+		if tokens <= remaining {
+			contextSections = append(contextSections, block)
+			remaining -= tokens
+			sources = append(sources, fmt.Sprintf("file (explicit): %s", relPath))
+		}
+	}
+
+	// --- Step 4: Retrieve semantically relevant content ---
 	retrieval, _ := b.orchestrator.Retrieve(ctx, opts.Question, memory.RetrieveOptions{
 		TopKChunks:          opts.TopKChunks,
 		TopKMemories:        opts.TopKMemories,
 		SimilarityThreshold: opts.SimilarityThreshold,
 	})
 
-	// --- Step 4: Decision block ---
+	// --- Step 5: Decision block ---
 	if len(decisions) > 0 {
 		block := b.formatter.FormatMemories(memory.TypeDecision, decisions)
 		tokens := b.tokenizer.Count(block)
 		if tokens <= remaining {
 			contextSections = append(contextSections, block)
 			remaining -= tokens
+			for _, d := range decisions {
+				sources = append(sources, fmt.Sprintf("decision: %s", truncateStr(d.Content, 60)))
+			}
 		}
 	}
 
-	// --- Step 5: Fill remaining budget with retrieved chunks ---
+	// --- Step 6: Fill remaining budget with retrieved chunks and memories ---
 	chunksUsed := 0
 	memoriesUsed := 0
 
@@ -119,6 +156,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*BuiltContext, 
 				contextSections = append(contextSections, block)
 				remaining -= tokens
 				memoriesUsed++
+				sources = append(sources, fmt.Sprintf("memory (%s): %s", m.MemoryType, truncateStr(m.Content, 60)))
 			}
 		}
 
@@ -135,6 +173,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*BuiltContext, 
 				contextSections = append(contextSections, block)
 				remaining -= tokens
 				chunksUsed++
+				sources = append(sources, fmt.Sprintf("chunk: %s:%d-%d", filePath, c.StartLine, c.EndLine))
 			} else if remaining > 100 {
 				// Truncate the chunk to fit.
 				truncated := b.tokenizer.Truncate(c.Content, remaining-50)
@@ -143,6 +182,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*BuiltContext, 
 				contextSections = append(contextSections, block)
 				remaining = 0
 				chunksUsed++
+				sources = append(sources, fmt.Sprintf("chunk (truncated): %s:%d-%d", filePath, c.StartLine, c.EndLine))
 				break
 			} else {
 				break
@@ -159,5 +199,13 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*BuiltContext, 
 		TokensUsed:   tokensUsed,
 		ChunksUsed:   chunksUsed,
 		MemoriesUsed: memoriesUsed,
+		Sources:      sources,
 	}, nil
+}
+
+func truncateStr(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }
