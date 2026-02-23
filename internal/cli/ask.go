@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -159,6 +160,17 @@ Examples:
 				responseBuf.WriteString(chunk.Text)
 			}
 			fmt.Println()
+
+			// Record the session (best-effort — non-fatal on failure).
+			if sourcesJSON, err := json.Marshal(builtCtx.Sources); err == nil {
+				_ = store.InsertSession(memory.Session{
+					Question:        question,
+					ContextUsed:     string(sourcesJSON),
+					ResponseSummary: truncateLabel(responseBuf.String(), 300),
+					ModelUsed:       providerName,
+					TokensUsed:      builtCtx.TokensUsed,
+				})
+			}
 
 			// Auto-extract memories from the response if enabled.
 			doExtract := gcfg.Extraction.Enabled || extract
