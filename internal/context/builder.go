@@ -147,8 +147,8 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*BuiltContext, 
 	if retrieval != nil {
 		// Add relevant memories first.
 		for _, m := range retrieval.Memories {
-			if m.MemoryType == memory.TypeConvention || m.MemoryType == memory.TypeConstraint {
-				continue // Already in system prompt.
+			if m.MemoryType == memory.TypeConvention || m.MemoryType == memory.TypeConstraint || m.MemoryType == memory.TypeDecision {
+				continue // Already included via system prompt or decisions block.
 			}
 			block := "- " + m.Content + "\n"
 			tokens := b.tokenizer.Count(block)
