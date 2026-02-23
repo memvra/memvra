@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 
+	"github.com/memvra/memvra/internal/adapter"
 	"github.com/memvra/memvra/internal/config"
 	"github.com/memvra/memvra/internal/db"
 	"github.com/memvra/memvra/internal/memory"
@@ -103,17 +105,41 @@ and set up the .memvra/ directory with a SQLite database and config.`,
 
 			// Persist the project profile.
 			proj := memory.Project{
-				Name:      result.Stack.ProjectName,
-				RootPath:  root,
-				TechStack: result.Stack.ToJSON(),
-				FileCount: fileCount,
+				Name:       result.Stack.ProjectName,
+				RootPath:   root,
+				TechStack:  result.Stack.ToJSON(),
+				FileCount:  fileCount,
 				ChunkCount: chunkCount,
 			}
 			if err := store.UpsertProject(proj); err != nil {
 				return fmt.Errorf("save project profile: %w", err)
 			}
 
-			fmt.Printf("%d files indexed, %d chunks embedded\n", fileCount, chunkCount)
+			fmt.Printf("%d files indexed, %d chunks stored\n", fileCount, chunkCount)
+
+			// --- Embedding phase ---
+			// Build embedder from config; skip silently if unavailable or unconfigured.
+			embedder := buildEmbedder(gcfg)
+			vectors := memory.NewVectorStore(database)
+			if embedder != nil {
+				embBar := progressbar.NewOptions(-1,
+					progressbar.OptionSetDescription("  Generating embeddings"),
+					progressbar.OptionSpinnerType(14),
+					progressbar.OptionSetWriter(os.Stderr),
+					progressbar.OptionClearOnFinish(),
+				)
+				embeddedCount, embErr := embedAllChunks(context.Background(), store, vectors, embedder)
+				_ = embBar.Finish()
+				if embErr != nil {
+					// Connection-refused means the embedder (e.g. Ollama) isn't running.
+					fmt.Fprintf(os.Stderr, "  Embedder not available — skipping semantic indexing.\n")
+					fmt.Fprintf(os.Stderr, "  To enable: start Ollama or run `memvra setup` to configure OpenAI.\n")
+				} else if embeddedCount > 0 {
+					fmt.Printf("%d chunks embedded for semantic search\n", embeddedCount)
+				}
+			} else {
+				fmt.Println("Tip: run `memvra setup` to configure an embedder for semantic search.")
+			}
 
 			// Optional user notes.
 			if !skipPrompt {
@@ -139,6 +165,12 @@ and set up the .memvra/ directory with a SQLite database and config.`,
 						fmt.Fprintf(os.Stderr, "  Warning: could not save note: %v\n", err)
 					} else {
 						fmt.Printf("Stored as: %s (id: %s)\n", mt, id[:8])
+						// Embed the memory too (best-effort).
+						if embedder != nil {
+							if vecs, err := embedder.Embed(context.Background(), []string{line}); err == nil && len(vecs) > 0 {
+								_ = vectors.UpsertMemoryEmbedding(id, vecs[0])
+							}
+						}
 					}
 				}
 			}
@@ -175,6 +207,69 @@ func describeStack(ts scanner.TechStack) string {
 		return ts.Language
 	}
 	return ts.ProjectName
+}
+
+// buildEmbedder constructs an Embedder from the global config.
+// Returns nil if no embedder is configured or available.
+func buildEmbedder(gcfg config.GlobalConfig) adapter.Embedder {
+	name := gcfg.DefaultEmbedder
+	if name == "" {
+		name = "ollama"
+	}
+	var apiKey string
+	if name == adapter.ProviderOpenAI {
+		apiKey = gcfg.Keys.OpenAI
+	}
+	emb, err := adapter.New(name, gcfg.Ollama.EmbedModel, apiKey, gcfg.Ollama.Host)
+	if err != nil {
+		return nil
+	}
+	return emb
+}
+
+// embedAllChunks fetches every chunk from the store and batch-embeds them,
+// writing the resulting vectors into vec_chunks. Returns the number embedded.
+func embedAllChunks(ctx context.Context, store *memory.Store, vectors *memory.VectorStore, embedder adapter.Embedder) (int, error) {
+	chunks, err := store.ListAllChunks()
+	if err != nil {
+		return 0, fmt.Errorf("list chunks: %w", err)
+	}
+	if len(chunks) == 0 {
+		return 0, nil
+	}
+
+	const batchSize = 32
+	embedded := 0
+	for i := 0; i < len(chunks); i += batchSize {
+		end := i + batchSize
+		if end > len(chunks) {
+			end = len(chunks)
+		}
+		batch := chunks[i:end]
+
+		texts := make([]string, len(batch))
+		for j, c := range batch {
+			texts[j] = c.Content
+		}
+
+		vecs, err := embedder.Embed(ctx, texts)
+		if err != nil {
+			return embedded, fmt.Errorf("embed batch at offset %d: %w", i, err)
+		}
+
+		for j, vec := range vecs {
+			if j >= len(batch) {
+				break
+			}
+			if err := vectors.UpsertChunkEmbedding(batch[j].ID, vec); err != nil {
+				// Non-fatal: log and continue.
+				continue
+			}
+			embedded++
+		}
+	}
+
+	return embedded, nil
 }
 
 // ensureGitignore appends .memvra/ to .gitignore if not already present.

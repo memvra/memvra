@@ -109,6 +109,39 @@ func (s *Store) InsertChunk(c Chunk) error {
 	return err
 }
 
+// InsertChunkReturningID inserts a chunk and returns its generated ID.
+func (s *Store) InsertChunkReturningID(c Chunk) (string, error) {
+	var id string
+	err := s.db.Conn().QueryRow(`
+		INSERT INTO chunks (id, file_id, content, start_line, end_line, chunk_type)
+		VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
+		RETURNING id`,
+		c.FileID, c.Content, c.StartLine, c.EndLine, c.ChunkType,
+	).Scan(&id)
+	return id, err
+}
+
+// ListAllChunks returns every chunk in the database (used for bulk embedding).
+func (s *Store) ListAllChunks() ([]Chunk, error) {
+	rows, err := s.db.Conn().Query(
+		`SELECT id, file_id, content, start_line, end_line, COALESCE(chunk_type,'code') FROM chunks`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list all chunks: %w", err)
+	}
+	defer rows.Close()
+
+	var chunks []Chunk
+	for rows.Next() {
+		var c Chunk
+		if err := rows.Scan(&c.ID, &c.FileID, &c.Content, &c.StartLine, &c.EndLine, &c.ChunkType); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, rows.Err()
+}
+
 // DeleteChunksByFileID removes all chunks for a given file (used on re-index).
 func (s *Store) DeleteChunksByFileID(fileID string) error {
 	_, err := s.db.Conn().Exec(`DELETE FROM chunks WHERE file_id = ?`, fileID)

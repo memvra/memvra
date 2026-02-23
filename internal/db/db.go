@@ -6,17 +6,21 @@ import (
 	"os"
 	"path/filepath"
 
-	// sqlite-vec must be imported before go-sqlite3 so its auto-extension
-	// registration fires on every connection opened via the sqlite3 driver.
-	_ "github.com/asg017/sqlite-vec-go-bindings/cgo"
+	vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+func init() {
+	// Register sqlite-vec as an auto-extension so every SQLite connection
+	// opened by this process has the vec0 virtual table module available.
+	vec.Auto()
+}
 
 const (
 	// DefaultEmbeddingDimension is used when creating vec0 virtual tables.
 	// nomic-embed-text produces 768-dim vectors; text-embedding-3-small produces 1536.
-	// We default to 384 for the nomic-embed-text small variant.
-	DefaultEmbeddingDimension = 384
+	// We default to 768 to match nomic-embed-text (the default Ollama embed model).
+	DefaultEmbeddingDimension = 768
 )
 
 // DB wraps a *sql.DB and exposes helpers.

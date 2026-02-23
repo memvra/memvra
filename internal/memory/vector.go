@@ -19,36 +19,34 @@ func NewVectorStore(database *db.DB) *VectorStore {
 	return &VectorStore{conn: database.Conn()}
 }
 
-// UpsertChunkEmbedding inserts or updates a chunk embedding in vec_chunks.
+// UpsertChunkEmbedding inserts or replaces a chunk embedding in vec_chunks.
+// sqlite-vec virtual tables don't support ON CONFLICT upsert, so we
+// delete the existing row first then insert.
 func (v *VectorStore) UpsertChunkEmbedding(id string, embedding []float32) error {
 	if len(embedding) == 0 {
 		return nil
 	}
 	blob := float32SliceToBlob(embedding)
-	_, err := v.conn.Exec(
-		`INSERT INTO vec_chunks (id, embedding) VALUES (?, ?)
-		 ON CONFLICT(id) DO UPDATE SET embedding = excluded.embedding`,
-		id, blob,
-	)
-	if err != nil {
-		return fmt.Errorf("vector: upsert chunk embedding: %w", err)
+	if _, err := v.conn.Exec(`DELETE FROM vec_chunks WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("vector: delete old chunk embedding: %w", err)
+	}
+	if _, err := v.conn.Exec(`INSERT INTO vec_chunks (id, embedding) VALUES (?, ?)`, id, blob); err != nil {
+		return fmt.Errorf("vector: insert chunk embedding: %w", err)
 	}
 	return nil
 }
 
-// UpsertMemoryEmbedding inserts or updates a memory embedding in vec_memories.
+// UpsertMemoryEmbedding inserts or replaces a memory embedding in vec_memories.
 func (v *VectorStore) UpsertMemoryEmbedding(id string, embedding []float32) error {
 	if len(embedding) == 0 {
 		return nil
 	}
 	blob := float32SliceToBlob(embedding)
-	_, err := v.conn.Exec(
-		`INSERT INTO vec_memories (id, embedding) VALUES (?, ?)
-		 ON CONFLICT(id) DO UPDATE SET embedding = excluded.embedding`,
-		id, blob,
-	)
-	if err != nil {
-		return fmt.Errorf("vector: upsert memory embedding: %w", err)
+	if _, err := v.conn.Exec(`DELETE FROM vec_memories WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("vector: delete old memory embedding: %w", err)
+	}
+	if _, err := v.conn.Exec(`INSERT INTO vec_memories (id, embedding) VALUES (?, ?)`, id, blob); err != nil {
+		return fmt.Errorf("vector: insert memory embedding: %w", err)
 	}
 	return nil
 }

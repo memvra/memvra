@@ -41,6 +41,12 @@ type RetrievalResult struct {
 
 // Retrieve embeds the query and returns ranked chunks and memories.
 func (o *Orchestrator) Retrieve(ctx context.Context, query string, opts RetrieveOptions) (*RetrievalResult, error) {
+	// No embedder configured — fall back to listing all memories without ranking.
+	if o.embedder == nil {
+		mems, _ := o.store.ListMemories("")
+		return &RetrievalResult{Memories: mems}, nil
+	}
+
 	// Embed the query.
 	vecs, err := o.embedder.Embed(ctx, []string{query})
 	if err != nil || len(vecs) == 0 {

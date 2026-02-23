@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -72,6 +73,15 @@ Examples:
 			id, err := store.InsertMemory(m)
 			if err != nil {
 				return fmt.Errorf("store memory: %w", err)
+			}
+
+			// Embed the memory (best-effort — non-fatal on failure).
+			gcfg, _ := config.LoadGlobal()
+			if embedder := buildEmbedder(gcfg); embedder != nil {
+				vectors := memory.NewVectorStore(database)
+				if vecs, embErr := embedder.Embed(context.Background(), []string{statement}); embErr == nil && len(vecs) > 0 {
+					_ = vectors.UpsertMemoryEmbedding(id, vecs[0])
+				}
 			}
 
 			fmt.Printf("Stored as: %s\n", mt)
