@@ -50,6 +50,7 @@ func init() {
 		newUpdateCmd(),
 		newExportCmd(),
 		newSetupCmd(),
+		newPruneCmd(),
 		newVersionCmd(),
 	)
 }

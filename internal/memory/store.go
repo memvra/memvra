@@ -282,6 +282,35 @@ func (s *Store) InsertSession(sess Session) error {
 	return err
 }
 
+// PruneSessions deletes sessions older than the given number of days.
+// Returns the number of deleted rows.
+func (s *Store) PruneSessions(olderThanDays int) (int, error) {
+	res, err := s.db.Conn().Exec(
+		`DELETE FROM sessions WHERE created_at < datetime('now', '-' || ? || ' days')`,
+		olderThanDays,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("store: prune sessions: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// PruneSessionsKeepLatest deletes all but the latest N sessions.
+// Returns the number of deleted rows.
+func (s *Store) PruneSessionsKeepLatest(keep int) (int, error) {
+	res, err := s.db.Conn().Exec(`
+		DELETE FROM sessions WHERE id NOT IN (
+			SELECT id FROM sessions ORDER BY created_at DESC LIMIT ?
+		)`, keep,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("store: prune sessions keep latest: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // ---- Helpers ----
 
 // parseTime tries multiple SQLite timestamp layouts.
