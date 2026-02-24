@@ -72,9 +72,18 @@ func parseExtractionJSON(raw string, max int) ([]Memory, error) {
 		return nil, nil // nothing extractable — not an error
 	}
 
+	slice := raw[start : end+1]
+
+	// Some small models emit `["content": ...` (missing `{` on the first element).
+	// Normalise by inserting `{` after `[` when the array begins directly with a
+	// quoted key rather than a `{`.
+	if len(slice) > 1 && slice[1] == '"' {
+		slice = "[{" + slice[1:]
+	}
+
 	var candidates []extractCandidate
-	if err := json.Unmarshal([]byte(raw[start:end+1]), &candidates); err != nil {
-		return nil, nil // malformed JSON — degrade gracefully
+	if err := json.Unmarshal([]byte(slice), &candidates); err != nil {
+		return nil, nil // still malformed — degrade gracefully
 	}
 
 	var out []Memory

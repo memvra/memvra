@@ -183,6 +183,10 @@ Examples:
 				extracted, err := memory.ExtractMemories(context.Background(), llm, responseBuf.String(), gcfg.Extraction.MaxExtracts)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warn: memory extraction failed: %v\n", err)
+				} else if len(extracted) == 0 {
+					if verbose {
+						fmt.Fprintf(os.Stderr, "  (no memories extracted from response)\n")
+					}
 				} else {
 					for _, m := range extracted {
 						saved, saveErr := orchestrator.Remember(context.Background(), m.Content, m.MemoryType, "extracted")
@@ -193,7 +197,7 @@ Examples:
 							fmt.Fprintf(os.Stderr, "  extracted (%s): %s\n", saved.MemoryType, truncateLabel(saved.Content, 60))
 						}
 					}
-					if len(extracted) > 0 && !verbose {
+					if !verbose {
 						fmt.Fprintf(os.Stderr, "  %d memor%s extracted and stored.\n", len(extracted), pluralY(len(extracted)))
 					}
 				}
