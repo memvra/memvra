@@ -92,6 +92,72 @@ func TestScan_CountsCorrectly(t *testing.T) {
 	}
 }
 
+func TestScanFile_RecognisedFile(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "hello.go"), []byte("package main\n\nfunc main() {}\n"), 0o644)
+
+	ignore := NewIgnoreMatcher(dir)
+	sf, err := ScanFile(dir, "hello.go", 0, ignore)
+	if err != nil {
+		t.Fatalf("ScanFile error: %v", err)
+	}
+	if sf == nil {
+		t.Fatal("expected non-nil ScannedFile")
+	}
+	if sf.File.Language != "go" {
+		t.Errorf("language: got %q, want %q", sf.File.Language, "go")
+	}
+	if sf.File.ContentHash == "" {
+		t.Error("expected non-empty content hash")
+	}
+	if len(sf.Chunks) == 0 {
+		t.Error("expected at least one chunk")
+	}
+}
+
+func TestScanFile_SkipsBinary(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "image.png"), []byte{0x89, 0x50}, 0o644)
+
+	ignore := NewIgnoreMatcher(dir)
+	sf, err := ScanFile(dir, "image.png", 0, ignore)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sf != nil {
+		t.Error("expected nil for binary file")
+	}
+}
+
+func TestScanFile_SkipsHardIgnoredDir(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755)
+	os.WriteFile(filepath.Join(dir, "node_modules", "index.js"), []byte("export default {}"), 0o644)
+
+	ignore := NewIgnoreMatcher(dir)
+	sf, err := ScanFile(dir, filepath.Join("node_modules", "index.js"), 0, ignore)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sf != nil {
+		t.Error("expected nil for file inside node_modules")
+	}
+}
+
+func TestScanFile_UnrecognisedLanguage(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "data.dat"), []byte("some data"), 0o644)
+
+	ignore := NewIgnoreMatcher(dir)
+	sf, err := ScanFile(dir, "data.dat", 0, ignore)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sf != nil {
+		t.Error("expected nil for unrecognised file extension")
+	}
+}
+
 func TestFindProjectRoot_FromSubdir(t *testing.T) {
 	// testdata/go_project has go.mod, so FindProjectRoot should find it.
 	root, err := FindProjectRoot("../../testdata/go_project")

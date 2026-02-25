@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/memvra/memvra/internal/memory"
@@ -135,6 +136,74 @@ func Scan(opts ScanOptions) ScanResult {
 	result.Stack = stack
 
 	return result
+}
+
+// ScanFile scans a single file and returns a ScannedFile.
+// relPath is relative to root. Returns nil if the file should be skipped
+// (binary, gitignored, unrecognised language, etc).
+func ScanFile(root, relPath string, maxChunkLines int, ignore *IgnoreMatcher) (*ScannedFile, error) {
+	if maxChunkLines == 0 {
+		maxChunkLines = DefaultMaxLines
+	}
+
+	name := filepath.Base(relPath)
+
+	// Check hard-ignore on every directory component.
+	for _, part := range strings.Split(filepath.Dir(relPath), string(filepath.Separator)) {
+		if HardIgnore(part) {
+			return nil, nil
+		}
+	}
+
+	if SkipFile(name) {
+		return nil, nil
+	}
+
+	if ignore != nil && ignore.Match(relPath) {
+		return nil, nil
+	}
+
+	lang := LanguageForFile(relPath)
+	if lang == "" {
+		return nil, nil
+	}
+
+	absPath := filepath.Join(root, relPath)
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", relPath, err)
+	}
+
+	hash := fmt.Sprintf("%x", sha256.Sum256(content))
+
+	info, err := os.Stat(absPath)
+	var modTime time.Time
+	if err == nil {
+		modTime = info.ModTime()
+	}
+
+	chunkType := ChunkTypeForFile(relPath)
+	rawChunks := ChunkFile(string(content), chunkType, maxChunkLines)
+
+	sf := &ScannedFile{
+		File: memory.File{
+			Path:         relPath,
+			Language:     lang,
+			LastModified: modTime,
+			ContentHash:  hash,
+		},
+	}
+
+	for _, rc := range rawChunks {
+		sf.Chunks = append(sf.Chunks, memory.Chunk{
+			Content:   rc.Content,
+			StartLine: rc.StartLine,
+			EndLine:   rc.EndLine,
+			ChunkType: rc.ChunkType,
+		})
+	}
+
+	return sf, nil
 }
 
 // FindProjectRoot walks up from startDir looking for a project root marker.
