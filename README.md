@@ -15,6 +15,8 @@ Runs entirely on your machine. Works with any LLM. No accounts required.
 - **Extracts** decisions and constraints from AI responses and stores them
 - **Exports** to `CLAUDE.md`, `.cursorrules`, markdown, or JSON
 - **Incremental updates** — re-indexes only changed files, prunes deleted ones
+- **Watch mode** — auto-reindexes on file changes in the background
+- **Git hook integration** — auto-updates the index after every commit
 - **Local-first** — all data stays in `.memvra/` on your machine
 
 ## Installation
@@ -64,7 +66,12 @@ memvra context
 | `memvra context` | View the project context Memvra would inject |
 | `memvra status` | Show project stats — files, memories, sessions, DB size |
 | `memvra update` | Re-index changed files, re-embed modified chunks, prune deleted files |
+| `memvra watch` | Watch for file changes and auto-reindex in the background |
 | `memvra export` | Export context to CLAUDE.md, .cursorrules, markdown, or JSON |
+| `memvra hook install` | Install a post-commit git hook for automatic re-indexing |
+| `memvra hook uninstall` | Remove the post-commit hook (preserves other hooks) |
+| `memvra hook status` | Check if the post-commit hook is installed |
+| `memvra prune` | Remove old sessions to reduce database size |
 | `memvra version` | Print version, commit, and build date |
 
 ### `memvra ask` flags
@@ -80,13 +87,71 @@ memvra context
     --temperature float   Sampling temperature (default 0.7)
 ```
 
-### `memvra export` formats
+### `memvra init` flags
+
+```
+-r, --root string     Project root directory (default: auto-detect from cwd)
+    --no-prompt       Skip the interactive notes prompt
+```
+
+### `memvra remember` flags
+
+```
+-t, --type string     Memory type: decision, convention, constraint, note, todo
+                      (auto-detected from content if not set)
+```
+
+### `memvra forget` flags
+
+```
+    --id string       Delete a specific memory by ID
+-t, --type string     Delete all memories of this type
+    --all             Delete all memories (requires confirmation)
+```
+
+### `memvra context` flags
+
+```
+-s, --section string   Show only a specific section: profile, decisions, conventions,
+                       constraints, notes, todos
+    --export           Also write context to .memvra/context.md
+```
+
+### `memvra update` flags
+
+```
+    --force       Re-index all files, ignoring content hashes
+    --quiet       Suppress output (used by git hooks)
+```
+
+### `memvra watch` flags
+
+```
+    --debounce int   Debounce interval in milliseconds (default 500)
+```
+
+### `memvra prune` flags
+
+```
+    --older-than int   Remove sessions older than N days
+    --keep int         Keep only the latest N sessions (default 100)
+    --dry-run          Preview what would be deleted
+```
+
+### `memvra export` flags
+
+```
+    --format string    Output format: claude, cursor, markdown, json (default "markdown")
+-s, --section string   Export only memories of this type: decision, convention,
+                       constraint, note, todo
+```
 
 ```bash
 memvra export --format claude   > CLAUDE.md          # Claude Code
 memvra export --format cursor   > .cursorrules        # Cursor
 memvra export --format markdown > PROJECT_CONTEXT.md  # Generic markdown
 memvra export --format json     > context.json        # Structured JSON
+memvra export --format json --section decision        # Decisions only
 ```
 
 ## Configuration
@@ -149,10 +214,12 @@ api   = "All API responses follow JSON:API specification"
 
 | Provider | Completion | Embedding | Auth |
 |----------|-----------|-----------|------|
-| Claude | claude-sonnet-4 | — | `ANTHROPIC_API_KEY` |
+| Claude | claude-sonnet-4 | — (use OpenAI or Ollama) | `ANTHROPIC_API_KEY` |
 | OpenAI | gpt-4o | text-embedding-3-small | `OPENAI_API_KEY` |
 | Gemini | gemini-2.0-flash | text-embedding-004 | `GEMINI_API_KEY` |
 | Ollama | any local model | nomic-embed-text | Local (no key) |
+
+All four providers support streaming completions.
 
 ## Development
 
