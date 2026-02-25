@@ -183,8 +183,11 @@ and set up the .memvra/ directory with a SQLite database and config.`,
 				fmt.Fprintf(os.Stderr, "  Warning: could not write project config: %v\n", err)
 			}
 
-			// Ensure .memvra/ is in .gitignore.
+			// Ensure .memvra/ and auto-export files are in .gitignore.
 			ensureGitignore(root)
+
+			// Auto-export context files for all AI tools.
+			autoExport(root, store)
 
 			fmt.Println()
 			fmt.Println("Memvra initialized. Project context saved to .memvra/")
@@ -272,11 +275,28 @@ func embedAllChunks(ctx context.Context, store *memory.Store, vectors *memory.Ve
 	return embedded, nil
 }
 
-// ensureGitignore appends .memvra/ to .gitignore if not already present.
+// ensureGitignore appends .memvra/ and auto-export filenames to .gitignore
+// if not already present.
 func ensureGitignore(root string) {
 	path := filepath.Join(root, ".gitignore")
-	content, err := os.ReadFile(path)
-	if err == nil && strings.Contains(string(content), ".memvra/") {
+	content, _ := os.ReadFile(path)
+	existing := string(content)
+
+	// Collect lines that need to be added.
+	entries := []string{".memvra/"}
+
+	gcfg, _ := config.Load(root)
+	if gcfg.AutoExport.Enabled {
+		entries = append(entries, autoExportFilenames(gcfg.AutoExport)...)
+	}
+
+	var toAdd []string
+	for _, entry := range entries {
+		if !strings.Contains(existing, entry) {
+			toAdd = append(toAdd, entry)
+		}
+	}
+	if len(toAdd) == 0 {
 		return
 	}
 
@@ -286,8 +306,12 @@ func ensureGitignore(root string) {
 	}
 	defer f.Close()
 
-	if len(content) > 0 && !strings.HasSuffix(string(content), "\n") {
+	if len(content) > 0 && !strings.HasSuffix(existing, "\n") {
 		_, _ = f.WriteString("\n")
 	}
-	_, _ = f.WriteString(".memvra/\n")
+
+	_, _ = f.WriteString("\n# Memvra auto-generated context files\n")
+	for _, entry := range toAdd {
+		_, _ = f.WriteString(entry + "\n")
+	}
 }

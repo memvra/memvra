@@ -20,6 +20,14 @@ type GlobalConfig struct {
 	Output          OutputConfig        `toml:"output"`
 	Extraction      ExtractionConfig    `toml:"extraction"`
 	Summarization   SummarizationConfig `toml:"summarization"`
+	AutoExport      AutoExportConfig    `toml:"auto_export"`
+}
+
+// AutoExportConfig controls automatic regeneration of export files
+// (CLAUDE.md, .cursorrules, etc.) whenever memories change.
+type AutoExportConfig struct {
+	Enabled bool     `toml:"enabled"`
+	Formats []string `toml:"formats"`
 }
 
 // ExtractionConfig controls auto-extraction of memories from LLM responses.
@@ -105,6 +113,10 @@ func DefaultGlobal() GlobalConfig {
 		Summarization: SummarizationConfig{
 			Enabled:   false,
 			MaxTokens: 256,
+		},
+		AutoExport: AutoExportConfig{
+			Enabled: true,
+			Formats: []string{"claude", "cursor", "markdown", "json"},
 		},
 	}
 }

@@ -46,6 +46,7 @@ func init() {
 		newRememberCmd(),
 		newForgetCmd(),
 		newContextCmd(),
+		newDiffCmd(),
 		newStatusCmd(),
 		newUpdateCmd(),
 		newWatchCmd(),
