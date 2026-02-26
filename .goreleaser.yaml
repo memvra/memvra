@@ -68,15 +68,18 @@ release:
     owner: memvra
     name: memvra
 
-brews:
-  - name: memvra
-    repository:
-      owner: memvra
-      name: homebrew-tap
-    description: "Persistent, model-agnostic AI memory layer for software projects"
-    homepage: "https://memvra.com"
-    license: "MIT"
-    install: |
-      bin.install "memvra"
-    test: |
-      system "#{bin}/memvra", "version"
+# Homebrew tap — requires HOMEBREW_TAP_TOKEN secret with repo scope
+# Uncomment after adding the secret in GitHub repo settings
+# brews:
+#   - name: memvra
+#     repository:
+#       owner: memvra
+#       name: homebrew-tap
+#       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+#     description: "Persistent, model-agnostic AI memory layer for software projects"
+#     homepage: "https://memvra.com"
+#     license: "MIT"
+#     install: |
+#       bin.install "memvra"
+#     test: |
+#       system "#{bin}/memvra", "version"
