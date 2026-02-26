@@ -24,24 +24,11 @@ jobs:
 
       - name: Create darwin compiler wrappers
         run: |
-          cat > /usr/local/bin/darwin-amd64-cc <<'WRAP'
-          #!/bin/sh
-          exec o64-clang -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"
-          WRAP
-          cat > /usr/local/bin/darwin-amd64-cxx <<'WRAP'
-          #!/bin/sh
-          exec o64-clang++ -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"
-          WRAP
-          cat > /usr/local/bin/darwin-arm64-cc <<'WRAP'
-          #!/bin/sh
-          exec oa64-clang -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"
-          WRAP
-          cat > /usr/local/bin/darwin-arm64-cxx <<'WRAP'
-          #!/bin/sh
-          exec oa64-clang++ -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"
-          WRAP
-          chmod +x /usr/local/bin/darwin-amd64-cc /usr/local/bin/darwin-amd64-cxx
-          chmod +x /usr/local/bin/darwin-arm64-cc /usr/local/bin/darwin-arm64-cxx
+          printf '#!/bin/sh\nexec o64-clang -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-amd64-cc
+          printf '#!/bin/sh\nexec o64-clang++ -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-amd64-cxx
+          printf '#!/bin/sh\nexec oa64-clang -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-arm64-cc
+          printf '#!/bin/sh\nexec oa64-clang++ -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-arm64-cxx
+          chmod +x /usr/local/bin/darwin-amd64-cc /usr/local/bin/darwin-amd64-cxx /usr/local/bin/darwin-arm64-cc /usr/local/bin/darwin-arm64-cxx
 
       - name: Run GoReleaser
         run: goreleaser release --clean
