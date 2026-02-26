@@ -258,7 +258,7 @@ max_tokens           = 8000   # Token budget for context injection
 similarity_threshold = 0.3    # Minimum similarity score for retrieval
 top_k_chunks         = 10     # Max code chunks to retrieve
 top_k_memories       = 5      # Max memories to retrieve
-top_k_sessions       = 1      # Recent session summaries to inject (0 = skip)
+top_k_sessions       = 3      # Recent session summaries to inject (0 = skip)
 session_token_budget = 500    # Max tokens for session history block
 
 [output]
@@ -270,7 +270,7 @@ enabled      = false  # Auto-extract memories after every ask
 max_extracts = 3
 
 [summarization]
-enabled    = false  # Auto-summarize sessions after every ask
+enabled    = true   # Auto-summarize sessions after every ask
 max_tokens = 256    # Max tokens for the summary LLM call
 
 [auto_export]

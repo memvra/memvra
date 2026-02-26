@@ -10,6 +10,7 @@ import (
 	"github.com/memvra/memvra/internal/config"
 	"github.com/memvra/memvra/internal/db"
 	"github.com/memvra/memvra/internal/export"
+	gitpkg "github.com/memvra/memvra/internal/git"
 	"github.com/memvra/memvra/internal/memory"
 	"github.com/memvra/memvra/internal/scanner"
 )
@@ -77,10 +78,15 @@ Examples:
 					format, strings.Join(export.ValidFormats(), ", "))
 			}
 
+			sessions, _ := store.GetLastNSessions(5)
+			gitState := gitpkg.CaptureWorkingState(root)
+
 			output, err := exporter.Export(export.ExportData{
 				Project:  proj,
 				Stack:    ts,
 				Memories: memories,
+				Sessions: sessions,
+				GitState: gitState,
 			})
 			if err != nil {
 				return fmt.Errorf("export: %w", err)

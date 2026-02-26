@@ -99,7 +99,7 @@ func DefaultGlobal() GlobalConfig {
 			SimilarityThreshold: 0.3,
 			TopKChunks:          10,
 			TopKMemories:        5,
-			TopKSessions:        1,
+			TopKSessions:        3,
 			SessionTokenBudget:  500,
 		},
 		Output: OutputConfig{
@@ -111,7 +111,7 @@ func DefaultGlobal() GlobalConfig {
 			MaxExtracts: 3,
 		},
 		Summarization: SummarizationConfig{
-			Enabled:   false,
+			Enabled:   true,
 			MaxTokens: 256,
 		},
 		AutoExport: AutoExportConfig{

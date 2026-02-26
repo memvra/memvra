@@ -42,6 +42,18 @@ func TestDefaultGlobal(t *testing.T) {
 	if cfg.Extraction.MaxExtracts != 3 {
 		t.Errorf("max extracts: got %d, want 3", cfg.Extraction.MaxExtracts)
 	}
+	if !cfg.Summarization.Enabled {
+		t.Error("summarization should default to enabled")
+	}
+	if cfg.Context.TopKSessions != 3 {
+		t.Errorf("top k sessions: got %d, want 3", cfg.Context.TopKSessions)
+	}
+	if !cfg.AutoExport.Enabled {
+		t.Error("auto export should default to enabled")
+	}
+	if len(cfg.AutoExport.Formats) != 4 {
+		t.Errorf("auto export formats: got %d, want 4", len(cfg.AutoExport.Formats))
+	}
 	if cfg.Ollama.Host != "http://localhost:11434" {
 		t.Errorf("ollama host: got %q", cfg.Ollama.Host)
 	}

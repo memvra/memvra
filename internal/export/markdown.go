@@ -17,6 +17,9 @@ func (e *MarkdownExporter) Export(data ExportData) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s — Project Context\n\n", proj.Name)
 
+	b.WriteString(renderGitStateMarkdown(data.GitState))
+	b.WriteString(renderSessionsMarkdown(data.Sessions))
+
 	fmt.Fprintf(&b, "## Tech Stack\n\n")
 	if ts.Language != "" {
 		fmt.Fprintf(&b, "| Language | %s |\n", ts.Language)

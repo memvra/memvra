@@ -2,6 +2,7 @@ package export
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/memvra/memvra/internal/memory"
 )
@@ -10,9 +11,26 @@ import (
 type JSONExporter struct{}
 
 type jsonOutput struct {
+	GitState   *jsonGitState            `json:"work_in_progress,omitempty"`
+	Sessions   []jsonSession            `json:"recent_activity,omitempty"`
 	Project    jsonProject              `json:"project"`
 	Stack      jsonStack                `json:"stack"`
-	Memories   map[string][]jsonMemory `json:"memories"`
+	Memories   map[string][]jsonMemory  `json:"memories"`
+}
+
+type jsonGitState struct {
+	Branch    string   `json:"branch,omitempty"`
+	Staged    []string `json:"staged,omitempty"`
+	Modified  []string `json:"modified,omitempty"`
+	Untracked []string `json:"untracked,omitempty"`
+	DiffStat  string   `json:"diff_stat,omitempty"`
+}
+
+type jsonSession struct {
+	Timestamp string `json:"timestamp"`
+	Question  string `json:"question"`
+	Summary   string `json:"summary,omitempty"`
+	Model     string `json:"model,omitempty"`
 }
 
 type jsonProject struct {
@@ -58,6 +76,28 @@ func (e *JSONExporter) Export(data ExportData) (string, error) {
 			Patterns:      ts.DetectedPatterns,
 		},
 		Memories: groupMemoriesByType(data.Memories),
+	}
+
+	if !data.GitState.IsEmpty() && data.GitState.HasChanges() {
+		out.GitState = &jsonGitState{
+			Branch:    data.GitState.Branch,
+			Staged:    data.GitState.Staged,
+			Modified:  data.GitState.Modified,
+			Untracked: data.GitState.Untracked,
+			DiffStat:  data.GitState.DiffStat,
+		}
+	}
+
+	if len(data.Sessions) > 0 {
+		for i := len(data.Sessions) - 1; i >= 0; i-- {
+			s := data.Sessions[i]
+			out.Sessions = append(out.Sessions, jsonSession{
+				Timestamp: s.CreatedAt.Format(time.RFC3339),
+				Question:  s.Question,
+				Summary:   s.ResponseSummary,
+				Model:     s.ModelUsed,
+			})
+		}
 	}
 
 	b, err := json.MarshalIndent(out, "", "  ")
