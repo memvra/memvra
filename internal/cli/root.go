@@ -50,6 +50,7 @@ func init() {
 		newStatusCmd(),
 		newUpdateCmd(),
 		newWatchCmd(),
+		newWrapCmd(),
 		newExportCmd(),
 		newHookCmd(),
 		newSetupCmd(),

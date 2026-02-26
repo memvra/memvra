@@ -5,6 +5,7 @@ go 1.23.0
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/asg017/sqlite-vec-go-bindings v0.1.6
+	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/liushuangls/go-anthropic/v2 v2.10.0
 	github.com/mark3labs/mcp-go v0.44.0
@@ -14,6 +15,7 @@ require (
 	github.com/sashabaranov/go-openai v1.28.0
 	github.com/schollz/progressbar/v3 v3.16.1
 	github.com/spf13/cobra v1.8.1
+	golang.org/x/term v0.24.0
 )
 
 require (
@@ -33,6 +35,5 @@ require (
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/term v0.24.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
