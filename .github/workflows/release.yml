@@ -9,28 +9,78 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/goreleaser/goreleaser-cross:v1.23
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-latest
+          - goos: darwin
+            goarch: amd64
+            runner: macos-13
+          - goos: darwin
+            goarch: arm64
+            runner: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Fix git safe directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
 
-      - name: Create darwin compiler wrappers
+      - name: Build binary
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
         run: |
-          printf '#!/bin/sh\nexec o64-clang -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-amd64-cc
-          printf '#!/bin/sh\nexec o64-clang++ -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-amd64-cxx
-          printf '#!/bin/sh\nexec oa64-clang -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-arm64-cc
-          printf '#!/bin/sh\nexec oa64-clang++ -Wno-unused-command-line-argument -Wno-error=unused-command-line-argument "$@"\n' > /usr/local/bin/darwin-arm64-cxx
-          chmod +x /usr/local/bin/darwin-amd64-cc /usr/local/bin/darwin-amd64-cxx /usr/local/bin/darwin-arm64-cc /usr/local/bin/darwin-arm64-cxx
+          VERSION=${GITHUB_REF_NAME#v}
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" -o memvra ./cmd/memvra
 
-      - name: Run GoReleaser
-        run: goreleaser release --clean
+      - name: Create archive
+        run: |
+          ARCHIVE="memvra-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+          tar czf "$ARCHIVE" memvra README.md LICENSE
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: memvra-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.ARCHIVE }}
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create checksums
+        run: |
+          cd dist
+          find . -name '*.tar.gz' -exec mv {} . \;
+          sha256sum *.tar.gz > checksums.txt
+          ls -la
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
