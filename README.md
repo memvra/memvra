@@ -15,7 +15,9 @@ Runs entirely on your machine. Works with any LLM. No accounts required.
 - **Retrieves** relevant context semantically using vector search
 - **Injects** an optimized prompt into every LLM call automatically
 - **Extracts** decisions and constraints from AI responses and stores them
-- **Auto-exports** to `CLAUDE.md`, `.cursorrules`, `PROJECT_CONTEXT.md`, and `memvra-context.json` on every memory change
+- **Auto-exports** to `CLAUDE.md`, `.cursorrules`, `PROJECT_CONTEXT.md`, and `memvra-context.json` — including session history and git working state
+- **MCP server** — Claude Code, Cursor, and Windsurf call Memvra tools automatically via the Model Context Protocol
+- **Wrap any CLI tool** — `memvra wrap gemini` launches Gemini (or Aider, Ollama, etc.) with project context auto-injected and the session captured on exit
 - **Seamless model switching** — switch between Claude, Gemini, Cursor, or any AI tool mid-session without losing context
 - **Incremental updates** — re-indexes only changed files, prunes deleted ones
 - **Watch mode** — auto-reindexes on file changes in the background
@@ -80,7 +82,33 @@ You're deep in a coding session with Claude Code. You hit your token limit, or y
 
 ### How Memvra solves it
 
-Every time you store a memory (`memvra remember`), extract knowledge from a conversation (`memvra ask --extract`), or re-index your project (`memvra update`), Memvra automatically regenerates context files in **every format**:
+Memvra provides three integration tracks so every AI tool gets context automatically:
+
+**Track 1: MCP Server** — For MCP-compatible tools (Claude Code, Cursor, Windsurf)
+
+```bash
+memvra mcp install   # One-time setup — registers Memvra as an MCP server
+```
+
+The AI tool calls Memvra tools automatically (`memvra_save_progress`, `memvra_remember`, `memvra_get_context`, etc.) — no manual steps needed. Sessions are saved and context files are regenerated on every interaction.
+
+**Track 2: Wrap** — For non-MCP CLI tools (Gemini CLI, Aider, Ollama, etc.)
+
+```bash
+memvra wrap gemini   # Launches Gemini with project context auto-injected
+```
+
+Memvra injects session history + decisions as Gemini's first message, proxies all I/O transparently, captures the full conversation on exit, and auto-exports updated context.
+
+**Track 3: Ask** — Direct Q&A with any LLM
+
+```bash
+memvra ask "Continue implementing the auth middleware"
+```
+
+Full project context is injected into the LLM call automatically.
+
+All three tracks auto-export context files to every format:
 
 ```
 your-project/
@@ -94,25 +122,28 @@ your-project/
 ### Example workflow
 
 ```bash
-# Morning: Working with Claude Code
-memvra ask -m claude "Design the auth middleware"
-memvra remember "Using JWT with RS256, tokens expire in 1h, refresh via /auth/refresh"
-# → CLAUDE.md, .cursorrules, PROJECT_CONTEXT.md, memvra-context.json all updated
+# Morning: Working with Claude Code (MCP — automatic)
+# Claude calls memvra_save_progress before ending the session
+# → All context files updated with session history
 
 # Afternoon: Claude token limit reached — switch to Gemini
-# Just open a new terminal in the same project directory
-memvra ask -m gemini "Continue implementing the auth middleware"
-# → Gemini gets full context: project structure, tech stack, JWT decision, everything
+memvra wrap gemini
+# → Gemini starts with your full project context pre-loaded:
+#   "Here is project context from previous AI sessions..."
+#   Sessions, decisions, TODOs — all injected automatically
+# Type "continue" and Gemini picks up right where Claude left off
 
 # Evening: Want to use Cursor IDE for the frontend
 # Just open the project in Cursor — it reads .cursorrules automatically
-# Cursor already knows your conventions, decisions, and architecture
+# Cursor sees recent sessions, decisions, and conventions
 ```
 
 ### What each AI tool sees
 
-When any AI reads the auto-generated context, it sees:
+Every exported context file includes:
 
+- **Recent activity** — session history with timestamps, model used, and summaries
+- **Work in progress** — current git branch, staged/unstaged/untracked files
 - **Project profile** — name, tech stack, language, framework
 - **Decisions** — "Use PostgreSQL for JSONB support", "JWT with RS256"
 - **Conventions** — "camelCase for API fields", "Service objects in app/services/"
@@ -137,6 +168,9 @@ The AI doesn't need to be told what happened in previous sessions — it already
 | `memvra update` | Re-index changed files, re-embed modified chunks, prune deleted files |
 | `memvra watch` | Watch for file changes and auto-reindex in the background |
 | `memvra export` | Export context to CLAUDE.md, .cursorrules, markdown, or JSON |
+| `memvra wrap <tool>` | Wrap a CLI tool — inject context, proxy I/O, capture session |
+| `memvra mcp` | Start the MCP server (called by AI tools, not manually) |
+| `memvra mcp install` | Register Memvra as an MCP server in Claude Code and Cursor |
 | `memvra hook install` | Install a post-commit git hook for automatic re-indexing |
 | `memvra hook uninstall` | Remove the post-commit hook (preserves other hooks) |
 | `memvra hook status` | Check if the post-commit hook is installed |
@@ -219,6 +253,42 @@ The AI doesn't need to be told what happened in previous sessions — it already
     --dry-run          Preview what would be deleted
 ```
 
+### `memvra wrap` flags
+
+```
+-m, --model string   LLM provider for session summarization (claude, openai, gemini, ollama)
+-s, --summarize      Force session summarization on exit
+-e, --extract        Force memory extraction from session transcript
+    --no-inject      Skip injecting project context into the wrapped tool
+```
+
+```bash
+memvra wrap gemini                         # Launch Gemini with context injection
+memvra wrap aider --no-auto-commits        # Wrap Aider (unknown flags pass through)
+memvra wrap ollama run llama3.2            # Wrap Ollama with a specific model
+memvra wrap gemini --no-inject             # Launch without context injection
+memvra wrap gemini -s -e                   # Summarize + extract on exit
+```
+
+### `memvra mcp install`
+
+Registers Memvra as an MCP server. Writes config to:
+- Claude Code: `~/.claude/mcp.json`
+- Cursor: `.cursor/mcp.json` (project-level)
+
+After installation, the AI tool automatically discovers and calls Memvra's 8 tools:
+
+| MCP Tool | Description |
+|----------|-------------|
+| `memvra_save_progress` | Save session summary (called before ending a session) |
+| `memvra_remember` | Store a decision, convention, or note |
+| `memvra_get_context` | Retrieve relevant context for a question |
+| `memvra_search` | Semantic search across code and memories |
+| `memvra_forget` | Remove a memory by ID |
+| `memvra_project_status` | Get project stats |
+| `memvra_list_memories` | List stored memories |
+| `memvra_list_sessions` | List recent sessions |
+
 ### `memvra export` flags
 
 > **Note:** With auto-export enabled (default), you rarely need to run `memvra export` manually. Context files are regenerated automatically on every memory change. Use this command when you want to export to a custom path or filter by memory type.
@@ -278,7 +348,7 @@ enabled = true                                       # Auto-regenerate context f
 formats = ["claude", "cursor", "markdown", "json"]   # All formats by default
 ```
 
-Auto-export triggers on: `memvra init`, `memvra remember`, `memvra ask --extract` (when memories are extracted), `memvra update`, `memvra watch` (via update), and git hooks (via update).
+Auto-export triggers on: `memvra init`, `memvra remember`, `memvra ask --extract`, `memvra update`, `memvra watch` (via update), git hooks (via update), MCP tool calls (`save_progress`, `remember`, `forget`), and `memvra wrap` (on session exit).
 
 To disable auto-export or limit formats:
 
