@@ -162,7 +162,7 @@ func (s *Server) handleSearch(ctx context.Context, req mcp.CallToolRequest) (*mc
 	if len(result.Memories) > 0 {
 		sb.WriteString("## Matching Memories\n\n")
 		for _, m := range result.Memories {
-			sb.WriteString(fmt.Sprintf("- [%s] %s (id: %s)\n", m.MemoryType, m.Content, m.ID))
+			fmt.Fprintf(&sb, "- [%s] %s (id: %s)\n", m.MemoryType, m.Content, m.ID)
 		}
 		sb.WriteString("\n")
 	}

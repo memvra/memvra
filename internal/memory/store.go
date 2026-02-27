@@ -238,7 +238,7 @@ func (s *Store) ListMemories(filterType MemoryType) ([]Memory, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanMemories(rows)
 }
@@ -251,7 +251,7 @@ func (s *Store) CountMemoriesByType() (map[MemoryType]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	counts := make(map[MemoryType]int)
 	for rows.Next() {
@@ -346,7 +346,7 @@ func (s *Store) GetLastNSessions(n int) ([]Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: get last n sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []Session
 	for rows.Next() {
