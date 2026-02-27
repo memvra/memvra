@@ -194,7 +194,7 @@ func runInPTY(toolName string, toolArgs []string, capture *bytes.Buffer, context
 	if err != nil {
 		return fmt.Errorf("pty start: %w", err)
 	}
-	defer ptmx.Close()
+	defer func() { _ = ptmx.Close() }()
 
 	// Forward terminal resize events to the child.
 	winchCh := make(chan os.Signal, 1)

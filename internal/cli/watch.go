@@ -58,7 +58,7 @@ Press Ctrl-C to stop.`,
 			if err != nil {
 				return fmt.Errorf("create watcher: %w", err)
 			}
-			defer watcher.Close()
+			defer func() { _ = watcher.Close() }()
 
 			ignore := scanner.NewIgnoreMatcher(root)
 

@@ -93,7 +93,7 @@ func (g *geminiAdapter) Embed(ctx context.Context, texts []string) ([][]float32,
 		if err != nil {
 			return nil, fmt.Errorf("gemini embed: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("gemini embed: status %d", resp.StatusCode)
@@ -230,7 +230,7 @@ func (g *geminiAdapter) Complete(ctx context.Context, req CompletionRequest) (<-
 			ch <- StreamChunk{Error: fmt.Errorf("gemini stream: %w", err)}
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			respBody, _ := io.ReadAll(resp.Body)
@@ -287,7 +287,7 @@ func (g *geminiAdapter) doGenerate(ctx context.Context, url string, body []byte)
 	if err != nil {
 		return "", fmt.Errorf("gemini complete: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)

@@ -135,19 +135,15 @@ func LoadGlobal() (GlobalConfig, error) {
 	cfg := DefaultGlobal()
 
 	path, err := GlobalConfigPath()
-	if err != nil {
-		return cfg, nil // Return defaults if we can't determine home dir.
+	if err == nil {
+		if _, statErr := os.Stat(path); statErr == nil {
+			if _, decodeErr := toml.DecodeFile(path, &cfg); decodeErr != nil {
+				return cfg, fmt.Errorf("config: load global: %w", decodeErr)
+			}
+		}
 	}
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return cfg, nil // File doesn't exist yet — use defaults.
-	}
-
-	if _, err := toml.DecodeFile(path, &cfg); err != nil {
-		return cfg, fmt.Errorf("config: load global: %w", err)
-	}
-
-	// Let env vars override config file API keys.
+	// Let env vars override config file API keys (always applied).
 	if v := os.Getenv("ANTHROPIC_API_KEY"); v != "" {
 		cfg.Keys.Anthropic = v
 	}

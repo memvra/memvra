@@ -304,7 +304,7 @@ func ensureGitignore(root string) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if len(content) > 0 && !strings.HasSuffix(existing, "\n") {
 		_, _ = f.WriteString("\n")

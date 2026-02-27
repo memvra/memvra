@@ -120,7 +120,7 @@ func (o *openaiAdapter) Complete(ctx context.Context, req CompletionRequest) (<-
 
 	go func() {
 		defer close(ch)
-		defer stream.Close()
+		defer func() { _ = stream.Close() }()
 		for {
 			resp, err := stream.Recv()
 			if errors.Is(err, io.EOF) {
