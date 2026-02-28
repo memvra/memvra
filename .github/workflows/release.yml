@@ -84,3 +84,66 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          TAG=${GITHUB_REF_NAME}
+
+          # Calculate SHA256 for each archive
+          SHA_DARWIN_ARM64=$(sha256sum dist/memvra-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_DARWIN_AMD64=$(sha256sum dist/memvra-darwin-amd64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_AMD64=$(sha256sum dist/memvra-linux-amd64.tar.gz | cut -d' ' -f1)
+
+          BASE_URL="https://github.com/memvra/memvra/releases/download/${TAG}"
+
+          # Generate formula
+          cat > memvra.rb <<FORMULA
+          class Memvra < Formula
+            desc "Persistent, model-agnostic AI memory layer for software projects"
+            homepage "https://memvra.com"
+            license "MIT"
+            version "${VERSION}"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/memvra-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "${BASE_URL}/memvra-darwin-amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.intel?
+                url "${BASE_URL}/memvra-linux-amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "memvra"
+            end
+
+            test do
+              system "#{bin}/memvra", "version"
+            end
+          end
+          FORMULA
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' memvra.rb
+
+          # Push to homebrew-tap repo
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/memvra/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp memvra.rb tap/Formula/memvra.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/memvra.rb
+          git commit -m "Update memvra to ${VERSION}"
+          git push
