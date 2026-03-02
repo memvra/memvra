@@ -44,6 +44,10 @@ CLAUDE.md
 PROJECT_CONTEXT.md
 memvra-context.json
 
+# Internal planning
+ROADMAP.md
+LAUNCH_MESSAGING.md
+
 # Environment
 .env
 .env.local
