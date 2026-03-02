@@ -409,12 +409,12 @@ All four providers support streaming completions.
 │                      ▼           ▼           ▼          │
 │                ┌──────────────────────────────────┐     │
 │                │  .memvra/memvra.db (SQLite)      │     │
-│                │  ├── projects    (tech stack)     │     │
-│                │  ├── file_index  (content hashes) │     │
-│                │  ├── chunks     (code segments)   │     │
-│                │  ├── memories   (decisions, etc.) │     │
-│                │  ├── sessions   (conversation log)│     │
-│                │  └── vec_*      (vector embeddings│)    │
+│                │  ├── projects    (tech stack)    │     │
+│                │  ├── file_index  (content hashes)│     │
+│                │  ├── chunks      (code segments) │     │
+│                │  ├── memories    (decisions)     │     │
+│                │  ├── sessions    (conversation)  │     │
+│                │  └── vec_*       (embeddings)    │     │
 │                └──────────────────────────────────┘     │
 │                      │                                  │
 │                      ▼                                  │

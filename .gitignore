@@ -34,8 +34,15 @@ dist/
 # Editor/IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
+
+# AI tool context files
+.cursorrules
+CLAUDE.md
+PROJECT_CONTEXT.md
+memvra-context.json
 
 # Environment
 .env
